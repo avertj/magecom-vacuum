@@ -1,11 +1,13 @@
 var argv         = require('yargs') // arguments ligne de commande
                     .alias('u', 'url') // url
                     .string('u')
-                    .required('u')
+                    .default('u', 'http://gatherer.wizards.com/Pages/Card/Details.aspx?printed=true&multiverseid=')
                     .alias('r', 'resources') // recuperer les images ?
                     .boolean('r')
                     .alias('h', 'here') // où les sauver
                     .default('h', './fetched_resources/')
+                    .alias('f', 'from')
+                    .alias('t', 'to')
                     .argv
 
 // core modules
@@ -25,19 +27,29 @@ var cheerio      = require('cheerio') // HTML parser
 var mkdirp       = require('mkdirp') // recursive mkdir
 
 
+var cards = []
+var size = 0
+if(argv.from && argv.to && argv.from < argv.to) {
+    size = argv.to - argv.from
+    var i = argv.from
+    for(i; i < argv.to; i++) lookupCard(i)
+} else if(argv._ && argv._.length > 0) {
+    size = argv._.length
+    argv._.forEach(function(i, elem) {
+        lookupCard(i)
+    })
+}
 
 
-var cards = {}
-
-lookupCard(argv.url)
 
 // mana [R] [C:5] [C:x] [T]
-function lookupCard(raw_url) {
-    request(raw_url, function(error, response, data) {
+function lookupCard(cardid) {
+    request(argv.url + cardid, function(error, response, data) {
         if (error)
             return console.error(error)
 
         if(response.statusCode == 200) {
+            console.log('Fetching ' + cardid)
             var $ = cheerio.load(data)
 
             var card = {
@@ -51,11 +63,12 @@ function lookupCard(raw_url) {
                     variable: false,
                 },
                 text: [],
-                flavor: []
+                flavor: [],
+                id: cardid
             }
 
             if(argv.resources) {
-                fetchPicture($('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_cardImage').attr('src'))
+                card.img = fetchPicture($('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_cardImage').attr('src'))
             }
             // calcul du cout de la carte
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_manaRow').find('img').each(function(i, elem) {
@@ -94,17 +107,34 @@ function lookupCard(raw_url) {
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_flavorRow .value .cardtextbox').each(function (index, elem) {
                 card.flavor.push($(this).text().trim())
             })
+            cards.push(card)
+        } else {
+            console.log('Error fetching ' + cardid)
+        }
 
-            console.log(card)
+        size--
+        if(size == 0) {
+            var jsonstr = JSON.stringify(cards)
+
+            //console.log(jsonstr)
+
+            var folder = path.join(__dirname, argv.here)
+            fs.writeFile(path.join(folder, 'card.json'), jsonstr, function(err) {
+                if(err) {
+                    console.log(err)
+                } else {
+                    console.log('The file was saved!')
+                }
+            })
         }
     })
 }
 
-function fetchPicture(raw_url) {
+function fetchPicture(raw_url, callback) {
     ///Handlers/Image.ashx?size=medium&name=G&type=symbol
     var resolved_url = url.resolve(argv.url, raw_url)
     var parsed_url = url.parse(resolved_url, true)
-    console.log(resolved_url)
+    //console.log(resolved_url)
     if(parsed_url.search) {
         var folder = path.join(__dirname, argv.here, parsed_url.query.type)
         var file
@@ -114,9 +144,15 @@ function fetchPicture(raw_url) {
             folder = path.join(folder, parsed_url.query.size)
             file = path.join(folder, parsed_url.query.name + '.jpg')
         }
+        console.log(file)
         mkdirp(folder, function (error) {
             if (error) console.error(error)
-            else request(resolved_url).pipe(fs.createWriteStream(file))
+            else {
+                request(resolved_url).pipe(fs.createWriteStream(file))
+            }
         })
+        return file
     }
 }
+
+//node card_fetcher.js -r -f 161503 -t 161808 -h "..\magecom-client\resources"
