@@ -40,7 +40,30 @@ if(argv.from && argv.to && argv.from < argv.to) {
     })
 }
 
+function writeJSON(filename, data) {
+    var jsonstr = JSON.stringify(data)
 
+    console.log(jsonstr)
+
+    /*request.post({
+        url: 'http://localhost:8080/magecom-ejb/api/card',
+        json: true,
+        body: data
+    })*/
+    /*var folder = path.join(__dirname, argv.here, '/json/')
+    mkdirp(folder, function (error) {
+        if (error) console.error(error)
+        else {
+            fs.writeFile(path.join(folder, filename + '.json'), jsonstr, function(err) {
+                if(err) {
+                    console.log(err)
+                } else {
+                    console.log('The file was saved!')
+                }
+            })
+        }
+    })*/
+}
 
 // mana [R] [C:5] [C:x] [T]
 function lookupCard(cardid) {
@@ -53,18 +76,19 @@ function lookupCard(cardid) {
             var $ = cheerio.load(data)
 
             var card = {
-                mana: {
-                    black: 0,
-                    blue: 0,
-                    green: 0,
-                    red: 0,
-                    white: 0,
-                    colorless: 0,
-                    variable: false,
+                id: cardid,
+                color: {
+                    black: false,
+                    blue: false,
+                    green: false,
+                    red: false,
+                    white: false
                 },
+                price: Math.floor((Math.random() * 10) + 1),
+                x: false,
                 text: [],
-                flavor: [],
-                id: cardid
+                flavorText: [],
+                manaText: ''
             }
 
             if(argv.resources) {
@@ -74,13 +98,13 @@ function lookupCard(cardid) {
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_manaRow').find('img').each(function(i, elem) {
                 if(argv.resources) fetchPicture($(this).attr('src'))
                 
-                if(/name=b/i.test($(this).attr('src')))  card.mana.black++
-                if(/name=u/i.test($(this).attr('src')))  card.mana.blue++
-                if(/name=g/i.test($(this).attr('src')))  card.mana.green++
-                if(/name=r/i.test($(this).attr('src')))  card.mana.red++
-                if(/name=w/i.test($(this).attr('src')))  card.mana.white++
-                if(/name=\d/i.test($(this).attr('src'))) card.mana.colorless = Number($(this).attr('alt'))
-                if(/name=x/i.test($(this).attr('src')))  card.mana.variable = true
+                if(/name=b/i.test($(this).attr('src'))) { card.color.black = true; card.manaText += '[B]' }
+                if(/name=u/i.test($(this).attr('src'))) { card.color.blue = true; card.manaText += '[U]' }
+                if(/name=g/i.test($(this).attr('src'))) { card.color.green = true; card.manaText += '[G]' }
+                if(/name=r/i.test($(this).attr('src'))) { card.color.red = true; card.manaText += '[R]' }
+                if(/name=w/i.test($(this).attr('src'))) { card.color.white = true; card.manaText += '[W]' }
+                if(/name=\d/i.test($(this).attr('src'))) { card.manaText += '[' + Number($(this).attr('alt')) + ']' }
+                if(/name=x/i.test($(this).attr('src'))) { card.x = true; card.manaText += '[X]' }
             })
             // remplacement des images utilisée dans le texte par des symboles texte
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_textRow').find('img').each(function(i, elem) {
@@ -91,42 +115,44 @@ function lookupCard(cardid) {
                 if(/name=g/i.test($(this).attr('src')))   $(this).replaceWith('[G]')
                 if(/name=r/i.test($(this).attr('src')))   $(this).replaceWith('[R]')
                 if(/name=w/i.test($(this).attr('src')))   $(this).replaceWith('[W]')
-                if(/name=\d/i.test($(this).attr('src')))  $(this).replaceWith('[C:' + Number($(this).attr('alt')) + ']')
-                if(/name=x/i.test($(this).attr('src')))   $(this).replaceWith('[C:X]')
+                if(/name=\d/i.test($(this).attr('src')))  $(this).replaceWith('[' + Number($(this).attr('alt')) + ']')
+                if(/name=x/i.test($(this).attr('src')))   $(this).replaceWith('[X]')
                 if(/name=tap/i.test($(this).attr('src'))) $(this).replaceWith('[T]')
             })
 
             card.name = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_nameRow .value').text().trim()
             card.type = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_typeRow .value').text().trim()
             card.artist = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_artistRow .value a').text().trim()
-            card.rarity = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_rarityRow .value span').text().trim()
+            card.rarity = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_rarityRow .value span').text().trim().toUpperCase()
 
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_textRow .value .cardtextbox').each(function (index, elem) {
                 card.text.push($(this).text().trim())
             })
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_flavorRow .value .cardtextbox').each(function (index, elem) {
-                card.flavor.push($(this).text().trim())
+                card.flavorText.push($(this).text().trim())
             })
+
+            var pt = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_ptRow')
+            if(pt.length > 0) {
+                var both = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_ptRow .value').text().trim().split('/')
+                card.power = Number(both[0])
+                card.toughness = Number(both[1])
+            }
+
+            card.convertedManaCost = Number($('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_cmcRow .value').text().trim())
+            card.text = card.text.join('|');
+            card.flavorText = card.flavorText.join('|');
+
             cards.push(card)
+            writeJSON(card.id, card)
+
         } else {
             console.log('Error fetching ' + cardid)
         }
-
         size--
-        if(size == 0) {
-            var jsonstr = JSON.stringify(cards)
-
-            //console.log(jsonstr)
-
-            var folder = path.join(__dirname, argv.here)
-            fs.writeFile(path.join(folder, 'card.json'), jsonstr, function(err) {
-                if(err) {
-                    console.log(err)
-                } else {
-                    console.log('The file was saved!')
-                }
-            })
-        }
+        /*if(size == 0) {
+            writeJSON('card', cards)
+        }*/
     })
 }
 
