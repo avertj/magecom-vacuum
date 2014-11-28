@@ -8,6 +8,13 @@ var argv         = require('yargs') // arguments ligne de commande
                     .default('h', './fetched_resources/')
                     .alias('f', 'from')
                     .alias('t', 'to')
+                    .alias('p', 'post')
+                    .string('p')
+                    .default('p', 'http://localhost:8080/magecom-ejb/api/card')
+                    .alias('j', 'json') // post json (p must me defined)
+                    .boolean('j')
+                    .alias('w', 'write') // write json to file
+                    .boolean('w')
                     .argv
 
 // core modules
@@ -45,27 +52,37 @@ function writeJSON(filename, data) {
 
     console.log(jsonstr)
 
-    /*request.post({
-        url: 'http://localhost:8080/magecom-ejb/api/card',
-        json: true,
-        body: data
-    })*/
-    /*var folder = path.join(__dirname, argv.here, '/json/')
-    mkdirp(folder, function (error) {
-        if (error) console.error(error)
-        else {
-            fs.writeFile(path.join(folder, filename + '.json'), jsonstr, function(err) {
-                if(err) {
-                    console.log(err)
-                } else {
-                    console.log('The file was saved!')
-                }
-            })
-        }
-    })*/
+    if(argv.json) {
+        request.post({
+            url: argv.post,
+            json: true,
+            body: data
+        }, function(err, res, body) {
+            if (err) {
+                return console.error('upload failed:', err);
+            }
+            console.log('Upload successful!  Server responded with:', body);
+        })
+    }
+
+    if(argv.write) {
+        var folder = path.join(__dirname, argv.here, '/json/')
+        mkdirp(folder, function (error) {
+            if (error) console.error(error)
+            else {
+                fs.writeFile(path.join(folder, filename + '.json'), jsonstr, function(err) {
+                    if(err) {
+                        console.log(err)
+                    } else {
+                        console.log('The file was saved!')
+                    }
+                })
+            }
+        })
+    }
 }
 
-// mana [R] [C:5] [C:x] [T]
+// mana [R] [5] [X] [T]
 function lookupCard(cardid) {
     request(argv.url + cardid, function(error, response, data) {
         if (error)
@@ -88,7 +105,7 @@ function lookupCard(cardid) {
                 x: false,
                 text: [],
                 flavorText: [],
-                manaText: ''
+                manaString: ''
             }
 
             if(argv.resources) {
@@ -98,13 +115,13 @@ function lookupCard(cardid) {
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_manaRow').find('img').each(function(i, elem) {
                 if(argv.resources) fetchPicture($(this).attr('src'))
                 
-                if(/name=b/i.test($(this).attr('src'))) { card.color.black = true; card.manaText += '[B]' }
-                if(/name=u/i.test($(this).attr('src'))) { card.color.blue = true; card.manaText += '[U]' }
-                if(/name=g/i.test($(this).attr('src'))) { card.color.green = true; card.manaText += '[G]' }
-                if(/name=r/i.test($(this).attr('src'))) { card.color.red = true; card.manaText += '[R]' }
-                if(/name=w/i.test($(this).attr('src'))) { card.color.white = true; card.manaText += '[W]' }
-                if(/name=\d/i.test($(this).attr('src'))) { card.manaText += '[' + Number($(this).attr('alt')) + ']' }
-                if(/name=x/i.test($(this).attr('src'))) { card.x = true; card.manaText += '[X]' }
+                if(/name=b/i.test($(this).attr('src'))) { card.color.black = true; card.manaString += '[B]' }
+                if(/name=u/i.test($(this).attr('src'))) { card.color.blue = true; card.manaString += '[U]' }
+                if(/name=g/i.test($(this).attr('src'))) { card.color.green = true; card.manaString += '[G]' }
+                if(/name=r/i.test($(this).attr('src'))) { card.color.red = true; card.manaString += '[R]' }
+                if(/name=w/i.test($(this).attr('src'))) { card.color.white = true; card.manaString += '[W]' }
+                if(/name=\d/i.test($(this).attr('src'))) { card.manaString += '[' + Number($(this).attr('alt')) + ']' }
+                if(/name=x/i.test($(this).attr('src'))) { card.x = true; card.manaString += '[X]' }
             })
             // remplacement des images utilisée dans le texte par des symboles texte
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_textRow').find('img').each(function(i, elem) {
@@ -140,8 +157,8 @@ function lookupCard(cardid) {
             }
 
             card.convertedManaCost = Number($('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_cmcRow .value').text().trim())
-            card.text = card.text.join('|');
-            card.flavorText = card.flavorText.join('|');
+            //card.text = card.text.join('|');
+            //card.flavorText = card.flavorText.join('|');
 
             cards.push(card)
             writeJSON(card.id, card)
