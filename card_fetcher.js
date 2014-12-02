@@ -140,7 +140,7 @@ function lookupCard(cardid) {
             card.name = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_nameRow .value').text().trim()
             card.type = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_typeRow .value').text().trim()
             card.artist = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_artistRow .value a').text().trim()
-            card.rarity = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_rarityRow .value span').text().trim().toUpperCase()
+            card.rarity = $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_rarityRow .value span').text().trim().toUpperCase().replace(' ', '_')
 
             $('#ctl00_ctl00_ctl00_MainContent_SubContent_SubContent_textRow .value .cardtextbox').each(function (index, elem) {
                 card.text.push($(this).text().trim())
